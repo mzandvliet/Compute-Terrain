@@ -1,0 +1,80 @@
+﻿#include "Noise.compute"
+#pragma kernel GenerateNoise
+#pragma kernel ToTexture
+#pragma kernel ToMesh
+
+struct TerrainData {
+    float Height;
+};
+
+struct Vertex {
+    float3 Position;
+    float3 Normal;
+    float4 Tangent;
+    float2 Uv;
+};
+
+int _heightRes;
+float _noiseFreq;
+
+RWStructuredBuffer<TerrainData> _data;
+RWStructuredBuffer<Vertex> _mesh;
+RWTexture2D<float4> Texture;
+
+[numthreads(32,32,1)]
+void GenerateNoise(uint3 dtid : SV_DispatchThreadID)
+{
+    float h = 0;
+    for (uint i = 0; i < 16; i++) {
+        float f = _noiseFreq * (float)i;
+        h += (0.5 + 0.5 * snoise(float2(dtid.x * f, dtid.y * f))) * (1.0 / (float)(1+i)*0.33);
+    }
+
+    _data[dtid.x + dtid.y * _heightRes].Height = h;
+}
+
+[numthreads(32, 32, 1)]
+void ToTexture(uint3 dtid : SV_DispatchThreadID)
+{
+    float h = _data[dtid.x + dtid.y * _heightRes].Height;
+    Texture[dtid.xy] = float4(h,h,h,1);
+}
+
+[numthreads(8, 8, 1)]
+void ToMesh(uint3 dtid : SV_DispatchThreadID) // uint3 groupID : SV_GroupID, uint3 threadID : SV_GroupThreadID
+{
+    Vertex v;
+    float h = 0;
+
+    v.Normal = float3(0.0, 1.0, 0.0);
+    v.Tangent = float4(1.0, 0.0, 0.0, 1.0);
+    v.Uv = float2(0, 0);
+
+    int vertIdx = (dtid.x + dtid.y * (_heightRes-1)) * 6;
+
+    const float maxHeight = 128.0;
+    
+    h = _data[(dtid.x + 0) + (dtid.y + 0) * _heightRes].Height * maxHeight;
+    v.Position = float3(dtid.x + 0.0, h, dtid.y + 0.0);
+    _mesh[vertIdx + 0] = v;
+
+    h = _data[(dtid.x + 0) + (dtid.y + 1) * _heightRes].Height * maxHeight;
+    v.Position = float3(dtid.x + 0.0, h, dtid.y + 1.0);
+    _mesh[vertIdx + 1] = v;
+    
+    h = _data[(dtid.x + 1) + (dtid.y + 1) * _heightRes].Height * maxHeight;
+    v.Position = float3(dtid.x + 1.0, h, dtid.y + 1.0);
+    _mesh[vertIdx + 2] = v;
+
+    h = _data[(dtid.x + 1) + (dtid.y + 1) * _heightRes].Height * maxHeight;
+    v.Position = float3(dtid.x + 1.0, h, dtid.y + 1.0);
+    _mesh[vertIdx + 3] = v;
+    
+    h = _data[(dtid.x + 1) + (dtid.y + 0) * _heightRes].Height * maxHeight;
+    v.Position = float3(dtid.x + 1.0, h, dtid.y + 0.0);
+    _mesh[vertIdx + 4] = v;
+    
+    h = _data[(dtid.x + 0) + (dtid.y + 0) * _heightRes].Height * maxHeight;
+    v.Position = float3(dtid.x + 0.0, h, dtid.y + 0.0);
+    _mesh[vertIdx + 5] = v;
+}
