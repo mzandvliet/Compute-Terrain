@@ -4,7 +4,7 @@ using UnityEngine;
 
 public struct TerrainData {
     public float Height;
-    //public Vector3 Normal;
+    public Vector3 Normal;
 }
 
 public struct Vertex {
@@ -44,9 +44,9 @@ public class Erosion : MonoBehaviour {
 
     void Awake() {
         _noiseKernel = _eroder.FindKernel("GenerateNoise");
-//        _normalKernel = _eroder.FindKernel("GenerateNormals");
+        _normalKernel = _eroder.FindKernel("GenerateNormals");
         _textureKernel = _eroder.FindKernel("ToTexture");
-//        _meshKernel = _eroder.FindKernel("ToMesh");
+        _meshKernel = _eroder.FindKernel("ToMesh");
         
         _terrainBuffer = new ComputeBuffer(_res * _res, Marshal.SizeOf(typeof(TerrainData)));
 
@@ -61,19 +61,26 @@ public class Erosion : MonoBehaviour {
         _eroder.SetInt("_heightRes", _res);
         _eroder.SetFloat("_noiseFreq", _noiseFreq);
         _eroder.SetFloat("_maxHeight", _maxHeight);
+
         _eroder.SetBuffer(_noiseKernel, "_data", _terrainBuffer);
-        //_eroder.SetBuffer(_meshKernel, "_data", _terrainBuffer);
-        //_eroder.SetBuffer(_meshKernel, "_mesh", _meshBuffer);
+
+        _eroder.SetBuffer(_meshKernel, "_data", _terrainBuffer);
+        _eroder.SetBuffer(_meshKernel, "_mesh", _meshBuffer);
+
+        _eroder.SetBuffer(_normalKernel, "_data", _terrainBuffer);
+
+        _eroder.SetBuffer(_textureKernel, "_data", _terrainBuffer);
         _eroder.SetTexture(_textureKernel, "_texture", _tex);
+        
         _terrainMaterial.SetBuffer("verts", _meshBuffer);
 
         const int noiseKSize = 32;
         int numNoiseGroups = _res / noiseKSize;
         _eroder.Dispatch(_noiseKernel, numNoiseGroups, numNoiseGroups, 1);
 
-        //        const int normalKSize = 32;
-        //        int numNormalGroups = _res / normalKSize;
-        //        _eroder.Dispatch(_normalKernel, numNormalGroups, numNormalGroups, 1);
+        const int normalKSize = 32;
+        int numNormalGroups = _res / normalKSize;
+        _eroder.Dispatch(_normalKernel, numNormalGroups, numNormalGroups, 1);
     }
 
     private void OnDestroy() {
@@ -88,9 +95,9 @@ public class Erosion : MonoBehaviour {
     }
 
     private void Update() {
-//        const int meshKSize = 8;
-//        int numMeshGroups = (_res - 1) / meshKSize;
-//        _eroder.Dispatch(_meshKernel, numMeshGroups, numMeshGroups, 1);
+        const int meshKSize = 32;
+        int numMeshGroups = (_res - 1) / meshKSize;
+        _eroder.Dispatch(_meshKernel, numMeshGroups, numMeshGroups, 1);
 
         const int textureKSize = 32;
         int numTextureGroups = _res / textureKSize;
