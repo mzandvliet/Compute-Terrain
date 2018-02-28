@@ -29,12 +29,14 @@ RWTexture2D<float4> _texture;
 [numthreads(32,32,1)]
 void GenerateNoise(uint3 dtid : SV_DispatchThreadID)
 {
-    
+    dtid.y = _heightRes - 1 - dtid.y;
     float h = 0;
-    for (uint i = 0; i < 32; i++) {
+    for (uint i = 0; i < 64; i++) {
         float f = _noiseFreq * (float)i;
-        h += (0.5 + 0.5 * snoise(float2(dtid.x * f, dtid.y * f))) * (1.0 / (float)(1+i)*0.33);
+        h += (0.5 + 0.5 * snoise(float2(dtid.x * f, dtid.y * f))) * (1.0 / (float)(1+i)*0.5);
     }
+
+    h = h * h;
 
     _data[dtid.x + dtid.y * _heightRes].Height = h * _maxHeight;  
 }
@@ -62,7 +64,7 @@ void ToTexture(uint3 dtid : SV_DispatchThreadID)
     _texture[dtid.xy] = float4(h,h,h,1);
 }
 
-/* Gosh, I wish I had a less verbose pattern for going over these two-tri indices... */
+/* Make less verbose pattern for going over these two-tri indices... */
 
 [numthreads(8, 8, 1)]
 void ToMesh(uint3 dtid : SV_DispatchThreadID) // uint3 groupID : SV_GroupID, uint3 threadID : SV_GroupThreadID
@@ -76,33 +78,41 @@ void ToMesh(uint3 dtid : SV_DispatchThreadID) // uint3 groupID : SV_GroupID, uin
 
     int vertIdx = (dtid.x + dtid.y * (_heightRes-1)) * 6;
 
+    const float scale = 0.125;
+
     d = _data[(dtid.x + 0) + (dtid.y + 0) * _heightRes];
-    v.Position = float3(dtid.x + 0.0, d.Height, dtid.y + 0.0);
+    v.Position = float3(dtid.x + 0.0, d.Height, dtid.y + 0.0) * scale;
     v.Normal = d.Normal;
+    v.Uv = float2(0, 0);
     _mesh[vertIdx + 0] = v;
 
     d = _data[(dtid.x + 0) + (dtid.y + 1) * _heightRes];
-    v.Position = float3(dtid.x + 0.0, d.Height, dtid.y + 1.0);
+    v.Position = float3(dtid.x + 0.0, d.Height, dtid.y + 1.0) * scale;
     v.Normal = d.Normal;
+    v.Uv = float2(0, 1);
     _mesh[vertIdx + 1] = v;
     
     d = _data[(dtid.x + 1) + (dtid.y + 1) * _heightRes];
-    v.Position = float3(dtid.x + 1.0, d.Height, dtid.y + 1.0);
+    v.Position = float3(dtid.x + 1.0, d.Height, dtid.y + 1.0) * scale;
     v.Normal = d.Normal;
+    v.Uv = float2(1, 1);
     _mesh[vertIdx + 2] = v;
 
     d = _data[(dtid.x + 1) + (dtid.y + 1) * _heightRes];
-    v.Position = float3(dtid.x + 1.0, d.Height, dtid.y + 1.0);
+    v.Position = float3(dtid.x + 1.0, d.Height, dtid.y + 1.0) * scale;
     v.Normal = d.Normal;
+    v.Uv = float2(1, 1);
     _mesh[vertIdx + 3] = v;
     
     d = _data[(dtid.x + 1) + (dtid.y + 0) * _heightRes];
-    v.Position = float3(dtid.x + 1.0, d.Height, dtid.y + 0.0);
+    v.Position = float3(dtid.x + 1.0, d.Height, dtid.y + 0.0) * scale;
     v.Normal = d.Normal;
+    v.Uv = float2(1, 0);
     _mesh[vertIdx + 4] = v;
     
     d = _data[(dtid.x + 0) + (dtid.y + 0) * _heightRes];
-    v.Position = float3(dtid.x + 0.0, d.Height, dtid.y + 0.0);
+    v.Position = float3(dtid.x + 0.0, d.Height, dtid.y + 0.0) * scale;
     v.Normal = d.Normal;
+    v.Uv = float2(0, 0);
     _mesh[vertIdx + 5] = v;
 }

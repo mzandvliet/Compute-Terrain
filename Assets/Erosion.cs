@@ -25,6 +25,7 @@ public class Erosion : MonoBehaviour {
     [SerializeField] private ComputeShader _eroder;
     [SerializeField] private Material _terrainMaterial;
 
+    [SerializeField] private int _res = 512;
     [SerializeField] private float _noiseFreq = 0.1f;
     [SerializeField] private float _maxHeight = 128f;
 
@@ -37,9 +38,9 @@ public class Erosion : MonoBehaviour {
     private ComputeBuffer _meshBuffer;
 
     private RenderTexture _tex;
-    private Vertex[] _meshBufferCpu;
+//    private Vertex[] _meshBufferCpu;
 
-    private int _res = 512;
+    
     private int _numVerts;
 
     void Awake() {
@@ -52,7 +53,7 @@ public class Erosion : MonoBehaviour {
 
         _numVerts = (_res - 1) * (_res - 1) * 6;
         _meshBuffer = new ComputeBuffer(_numVerts, Marshal.SizeOf(typeof(Vertex)), ComputeBufferType.Default);
-        _meshBufferCpu = new Vertex[_numVerts];
+//        _meshBufferCpu = new Vertex[_numVerts];
 
         _tex = new RenderTexture(_res, _res, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
         _tex.enableRandomWrite = true;
@@ -81,6 +82,14 @@ public class Erosion : MonoBehaviour {
         const int normalKSize = 32;
         int numNormalGroups = _res / normalKSize;
         _eroder.Dispatch(_normalKernel, numNormalGroups, numNormalGroups, 1);
+
+        const int meshKSize = 32;
+        int numMeshGroups = (_res - 1) / meshKSize;
+        _eroder.Dispatch(_meshKernel, numMeshGroups, numMeshGroups, 1);
+
+        const int textureKSize = 32;
+        int numTextureGroups = _res / textureKSize;
+        _eroder.Dispatch(_textureKernel, numTextureGroups, numTextureGroups, 1);
     }
 
     private void OnDestroy() {
@@ -94,18 +103,8 @@ public class Erosion : MonoBehaviour {
 //        _meshBuffer.GetData(_meshBufferCpu, 0, 0, _numVerts);
     }
 
-    private void Update() {
-        const int meshKSize = 32;
-        int numMeshGroups = (_res - 1) / meshKSize;
-        _eroder.Dispatch(_meshKernel, numMeshGroups, numMeshGroups, 1);
-
-        const int textureKSize = 32;
-        int numTextureGroups = _res / textureKSize;
-        _eroder.Dispatch(_textureKernel, numTextureGroups, numTextureGroups, 1);
-    }
-
     private void OnGUI() {
-        GUI.DrawTexture(new Rect(10, 10, _res, _res), _tex, ScaleMode.ScaleAndCrop);
+        GUI.DrawTexture(new Rect(10, 10, 512, 512), _tex, ScaleMode.ScaleAndCrop);
     }
 }
 
@@ -120,12 +119,3 @@ public struct Int3 {
         Z = z;
     }
 }
-
-//        Vertex[] buff = new Vertex[6];
-//        buff[0] = new Vertex(new Vector3(0, 0, 0), Vector3.up, new Vector4(1, 0, 0, 1), new Vector2(0, 0));
-//        buff[1] = new Vertex(new Vector3(0, 0, 1), Vector3.up, new Vector4(1, 0, 0, 1), new Vector2(0, 0));
-//        buff[2] = new Vertex(new Vector3(1, 0, 1), Vector3.up, new Vector4(1, 0, 0, 1), new Vector2(0, 0));
-//        buff[3] = new Vertex(new Vector3(1, 0, 1), Vector3.up, new Vector4(1, 0, 0, 1), new Vector2(0, 0));
-//        buff[4] = new Vertex(new Vector3(1, 0, 0), Vector3.up, new Vector4(1, 0, 0, 1), new Vector2(0, 0));
-//        buff[5] = new Vertex(new Vector3(0, 0, 0), Vector3.up, new Vector4(1, 0, 0, 1), new Vector2(0, 0));
-//        _meshBuffer.SetData(buff);
