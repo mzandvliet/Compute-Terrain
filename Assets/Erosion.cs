@@ -5,6 +5,7 @@ using UnityEngine;
 public struct TerrainData {
     public float Height;
     public Vector3 Normal;
+    public float Water;
 }
 
 public struct Vertex {
@@ -24,6 +25,7 @@ public struct Vertex {
 public class Erosion : MonoBehaviour {
     [SerializeField] private ComputeShader _eroder;
     [SerializeField] private Material _terrainMaterial;
+    [SerializeField] private Material _waterMaterial;
 
     [SerializeField] private int _res = 512;
     [SerializeField] private float _noiseFreq = 0.1f;
@@ -32,14 +34,14 @@ public class Erosion : MonoBehaviour {
     private int _noiseKernel;
     private int _normalKernel;
     private int _textureKernel;
-    private int _meshKernel;
+    private int _terrainMeshKernel;
+    private int _waterMeshKernel;
 
     private ComputeBuffer _terrainBuffer;
-    private ComputeBuffer _meshBuffer;
+    private ComputeBuffer _terrainMeshBuffer;
+    private ComputeBuffer _waterMeshBuffer;
 
     private RenderTexture _tex;
-//    private Vertex[] _meshBufferCpu;
-
     
     private int _numVerts;
 
@@ -47,13 +49,14 @@ public class Erosion : MonoBehaviour {
         _noiseKernel = _eroder.FindKernel("GenerateNoise");
         _normalKernel = _eroder.FindKernel("GenerateNormals");
         _textureKernel = _eroder.FindKernel("ToTexture");
-        _meshKernel = _eroder.FindKernel("ToMesh");
+        _terrainMeshKernel = _eroder.FindKernel("MeshTerrain");
+        _waterMeshKernel = _eroder.FindKernel("MeshWater");
         
         _terrainBuffer = new ComputeBuffer(_res * _res, Marshal.SizeOf(typeof(TerrainData)));
 
         _numVerts = (_res - 1) * (_res - 1) * 6;
-        _meshBuffer = new ComputeBuffer(_numVerts, Marshal.SizeOf(typeof(Vertex)), ComputeBufferType.Default);
-//        _meshBufferCpu = new Vertex[_numVerts];
+        _terrainMeshBuffer = new ComputeBuffer(_numVerts, Marshal.SizeOf(typeof(Vertex)), ComputeBufferType.Default);
+        _waterMeshBuffer = new ComputeBuffer(_numVerts, Marshal.SizeOf(typeof(Vertex)), ComputeBufferType.Default);
 
         _tex = new RenderTexture(_res, _res, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
         _tex.enableRandomWrite = true;
@@ -65,15 +68,19 @@ public class Erosion : MonoBehaviour {
 
         _eroder.SetBuffer(_noiseKernel, "_data", _terrainBuffer);
 
-        _eroder.SetBuffer(_meshKernel, "_data", _terrainBuffer);
-        _eroder.SetBuffer(_meshKernel, "_mesh", _meshBuffer);
+        _eroder.SetBuffer(_terrainMeshKernel, "_data", _terrainBuffer);
+        _eroder.SetBuffer(_terrainMeshKernel, "_terrainMesh", _terrainMeshBuffer);
+
+        _eroder.SetBuffer(_terrainMeshKernel, "_data", _terrainBuffer);
+        _eroder.SetBuffer(_terrainMeshKernel, "_waterMesh", _waterMeshBuffer);
 
         _eroder.SetBuffer(_normalKernel, "_data", _terrainBuffer);
 
         _eroder.SetBuffer(_textureKernel, "_data", _terrainBuffer);
         _eroder.SetTexture(_textureKernel, "_texture", _tex);
         
-        _terrainMaterial.SetBuffer("verts", _meshBuffer);
+        _terrainMaterial.SetBuffer("verts", _terrainMeshBuffer);
+        _waterMaterial.SetBuffer("verts", _waterMeshBuffer);
 
         const int noiseKSize = 32;
         int numNoiseGroups = _res / noiseKSize;
@@ -85,7 +92,8 @@ public class Erosion : MonoBehaviour {
 
         const int meshKSize = 32;
         int numMeshGroups = (_res - 1) / meshKSize;
-        _eroder.Dispatch(_meshKernel, numMeshGroups, numMeshGroups, 1);
+        _eroder.Dispatch(_terrainMeshKernel, numMeshGroups, numMeshGroups, 1);
+        _eroder.Dispatch(_waterMeshKernel, numMeshGroups, numMeshGroups, 1);
 
         const int textureKSize = 32;
         int numTextureGroups = _res / textureKSize;
@@ -94,13 +102,17 @@ public class Erosion : MonoBehaviour {
 
     private void OnDestroy() {
         _terrainBuffer.Release();
-        _meshBuffer.Release();
+        _terrainMeshBuffer.Release();
+        _waterMeshBuffer.Release();
     }
 
     private void OnRenderObject() {
+        // Todo: How to draw second mesh? Command buffer?
+
         _terrainMaterial.SetPass(0);
         Graphics.DrawProcedural(MeshTopology.Triangles, _numVerts);
-//        _meshBuffer.GetData(_meshBufferCpu, 0, 0, _numVerts);
+        _waterMaterial.SetPass(0);
+        Graphics.DrawProcedural(MeshTopology.Triangles, _numVerts);
     }
 
     private void OnGUI() {
