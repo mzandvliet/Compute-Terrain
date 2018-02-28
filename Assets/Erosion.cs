@@ -1,8 +1,10 @@
-﻿using System.Runtime.InteropServices;
+﻿using System.Collections;
+using System.Runtime.InteropServices;
 using UnityEngine;
 
 public struct TerrainData {
     public float Height;
+    //public Vector3 Normal;
 }
 
 public struct Vertex {
@@ -24,8 +26,10 @@ public class Erosion : MonoBehaviour {
     [SerializeField] private Material _terrainMaterial;
 
     [SerializeField] private float _noiseFreq = 0.1f;
+    [SerializeField] private float _maxHeight = 128f;
 
     private int _noiseKernel;
+    private int _normalKernel;
     private int _textureKernel;
     private int _meshKernel;
 
@@ -40,6 +44,7 @@ public class Erosion : MonoBehaviour {
 
     void Awake() {
         _noiseKernel = _eroder.FindKernel("GenerateNoise");
+        _normalKernel = _eroder.FindKernel("GenerateNormals");
         _textureKernel = _eroder.FindKernel("ToTexture");
         _meshKernel = _eroder.FindKernel("ToMesh");
         
@@ -55,32 +60,41 @@ public class Erosion : MonoBehaviour {
 
         _eroder.SetInt("_heightRes", _res);
         _eroder.SetFloat("_noiseFreq", _noiseFreq);
+        _eroder.SetFloat("_maxHeight", _maxHeight);
         _eroder.SetBuffer(_noiseKernel, "_data", _terrainBuffer);
         _eroder.SetBuffer(_meshKernel, "_data", _terrainBuffer);
         _eroder.SetBuffer(_meshKernel, "_mesh", _meshBuffer);
-        _eroder.SetTexture(_textureKernel, "Texture", _tex);
+        _eroder.SetTexture(_textureKernel, "_texture", _tex);
         _terrainMaterial.SetBuffer("verts", _meshBuffer);
+    }
+
+    private IEnumerator Start() {
+        const int noiseKSize = 32;
+        int numNoiseGroups = _res / noiseKSize;
+        _eroder.Dispatch(_noiseKernel, numNoiseGroups, numNoiseGroups, 1);
+
+        yield return new WaitForSeconds(0.1f);
+
+//        const int normalKSize = 32;
+//        int numNormalGroups = _res / normalKSize;
+//        _eroder.Dispatch(_normalKernel, numNormalGroups, numNormalGroups, 1);
+
+//        yield return new WaitForSeconds(0.1f);
+//
+//        const int meshKSize = 8;
+//        int numMeshGroups = (_res - 1) / meshKSize;
+//        _eroder.Dispatch(_meshKernel, numMeshGroups, numMeshGroups, 1);
+
+        yield return new WaitForSeconds(0.1f);
+
+        const int textureKSize = 32;
+        int numTextureGroups = _res / textureKSize;
+        _eroder.Dispatch(_textureKernel, numTextureGroups, numTextureGroups, 1);
     }
 
     private void OnDestroy() {
         _terrainBuffer.Release();
         _meshBuffer.Release();
-    }
-
-    private void Update() {
-        const int noiseKSize = 32;
-        int numGroups = _res / noiseKSize;
-        _eroder.Dispatch(_noiseKernel, numGroups, numGroups, 1);
-    }
-
-    private void LateUpdate() {
-        const int textureKSize = 8;
-        int numTextureGroups = _res / textureKSize;
-        _eroder.Dispatch(_textureKernel, numTextureGroups, numTextureGroups, 1);
-
-        const int meshKSize = 8;
-        int numMeshGroups = (_res-1) / meshKSize;
-        _eroder.Dispatch(_meshKernel, numMeshGroups, numMeshGroups, 1);
     }
 
     private void OnRenderObject() {
