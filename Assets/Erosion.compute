@@ -1,5 +1,10 @@
 ﻿#include "Noise.compute"
 
+#pragma kernel GenerateNoise
+//#pragma kernel GenerateNormals
+#pragma kernel ToTexture
+//#pragma kernel ToMesh
+
 struct TerrainData {
     float Height;
     //float3 Normal;
@@ -20,31 +25,31 @@ RWStructuredBuffer<TerrainData> _data;
 RWStructuredBuffer<Vertex> _mesh;
 RWTexture2D<float4> _texture;
 
-#pragma kernel GenerateNoise
+
 [numthreads(32,32,1)]
 void GenerateNoise(uint3 dtid : SV_DispatchThreadID)
 {
+    
+    float h = snoise(float2(dtid.x * 0.005, dtid.y * 0.005));
     /*
-    float h = 0;
     for (uint i = 0; i < 16; i++) {
         float f = _noiseFreq * (float)i;
         h += (0.5 + 0.5 * snoise(float2(dtid.x * f, dtid.y * f))) * (1.0 / (float)(1+i)*0.33);
     }
     */
+    
 
-    //_data[dtid.x + dtid.y * _heightRes].Height = 0.5; //  * _maxHeight
+    _data[dtid.x + dtid.y * _heightRes].Height = h; //  * _maxHeight
     //_data[dtid.x + dtid.y * _heightRes].Normal = float3(0.0, 1.0, 0.0);
-
-    TerrainData d;
-    d.Height = 1.0;
-    _data[dtid.x + dtid.y * _heightRes] = d;
 }
 
-#pragma kernel GenerateNormals
+/*
 [numthreads(32, 32, 1)]
 void GenerateNormals(uint3 dtid : SV_DispatchThreadID)
 {
-    /*
+    // Bug: when we read heights here, they're all 0?
+
+    
     float l = _data[max(dtid.x - 1, 0)              + dtid.y * _heightRes                           ].Height;
     float r = _data[min(dtid.x + 1, _heightRes-1)   + (dtid.y - 0) * _heightRes                     ].Height;
     float t = _data[dtid.x                          + min(dtid.y + 1, _heightRes - 1) * _heightRes  ].Height;
@@ -52,12 +57,11 @@ void GenerateNormals(uint3 dtid : SV_DispatchThreadID)
 
     float dx = (r - l);
     float dz = (t - b);
-    */
-
+    
     //_data[dtid.x + dtid.y * _heightRes].Normal = float3(0,0,0); //normalize(float3(dx, 2.0, dz))
 }
+*/
 
-#pragma kernel ToTexture
 [numthreads(32, 32, 1)]
 void ToTexture(uint3 dtid : SV_DispatchThreadID)
 {
@@ -67,7 +71,8 @@ void ToTexture(uint3 dtid : SV_DispatchThreadID)
     _texture[dtid.xy] = float4(h,h,h,1);
 }
 
-#pragma kernel ToMesh
+/* Gosh, I wish I had a less verbose pattern for going over these two-tri indices... */
+/*
 [numthreads(8, 8, 1)]
 void ToMesh(uint3 dtid : SV_DispatchThreadID) // uint3 groupID : SV_GroupID, uint3 threadID : SV_GroupThreadID
 {
@@ -79,8 +84,6 @@ void ToMesh(uint3 dtid : SV_DispatchThreadID) // uint3 groupID : SV_GroupID, uin
     v.Uv = float2(0, 0);
 
     int vertIdx = (dtid.x + dtid.y * (_heightRes-1)) * 6;
-
-    /* Gosh, I wish I had a less verbose pattern for going over these two-tri indices... */
 
     d = _data[(dtid.x + 0) + (dtid.y + 0) * _heightRes];
     v.Position = float3(dtid.x + 0.0, d.Height, dtid.y + 0.0);
@@ -112,3 +115,4 @@ void ToMesh(uint3 dtid : SV_DispatchThreadID) // uint3 groupID : SV_GroupID, uin
     //v.Normal = d.Normal;
     _mesh[vertIdx + 5] = v;
 }
+*/
