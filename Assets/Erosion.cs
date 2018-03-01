@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Runtime.InteropServices;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 public struct TerrainData {
     public float Height;
@@ -23,6 +24,7 @@ public struct Vertex {
 }
 
 public class Erosion : MonoBehaviour {
+    [SerializeField] private Camera _camera;
     [SerializeField] private ComputeShader _eroder;
     [SerializeField] private Material _terrainMaterial;
     [SerializeField] private Material _waterMaterial;
@@ -32,6 +34,7 @@ public class Erosion : MonoBehaviour {
     [SerializeField] private float _maxHeight = 128f;
 
     private int _noiseKernel;
+    private int _simulateKernel;
     private int _normalKernel;
     private int _textureKernel;
     private int _terrainMeshKernel;
@@ -45,8 +48,11 @@ public class Erosion : MonoBehaviour {
     
     private int _numVerts;
 
+    private CommandBuffer _commandBuffer;
+
     void Awake() {
         _noiseKernel = _eroder.FindKernel("GenerateNoise");
+        _simulateKernel = _eroder.FindKernel("Simulate");
         _normalKernel = _eroder.FindKernel("GenerateNormals");
         _textureKernel = _eroder.FindKernel("ToTexture");
         _terrainMeshKernel = _eroder.FindKernel("MeshTerrain");
@@ -67,12 +73,13 @@ public class Erosion : MonoBehaviour {
         _eroder.SetFloat("_maxHeight", _maxHeight);
 
         _eroder.SetBuffer(_noiseKernel, "_data", _terrainBuffer);
+        _eroder.SetBuffer(_simulateKernel, "_data", _terrainBuffer);
 
         _eroder.SetBuffer(_terrainMeshKernel, "_data", _terrainBuffer);
         _eroder.SetBuffer(_terrainMeshKernel, "_terrainMesh", _terrainMeshBuffer);
 
-        _eroder.SetBuffer(_terrainMeshKernel, "_data", _terrainBuffer);
-        _eroder.SetBuffer(_terrainMeshKernel, "_waterMesh", _waterMeshBuffer);
+        _eroder.SetBuffer(_waterMeshKernel, "_data", _terrainBuffer);
+        _eroder.SetBuffer(_waterMeshKernel, "_waterMesh", _waterMeshBuffer);
 
         _eroder.SetBuffer(_normalKernel, "_data", _terrainBuffer);
 
@@ -90,14 +97,28 @@ public class Erosion : MonoBehaviour {
         int numNormalGroups = _res / normalKSize;
         _eroder.Dispatch(_normalKernel, numNormalGroups, numNormalGroups, 1);
 
-        const int meshKSize = 32;
-        int numMeshGroups = (_res - 1) / meshKSize;
-        _eroder.Dispatch(_terrainMeshKernel, numMeshGroups, numMeshGroups, 1);
-        _eroder.Dispatch(_waterMeshKernel, numMeshGroups, numMeshGroups, 1);
-
         const int textureKSize = 32;
         int numTextureGroups = _res / textureKSize;
         _eroder.Dispatch(_textureKernel, numTextureGroups, numTextureGroups, 1);
+
+        const int meshKSize = 32;
+        int numMeshGroups = (_res - 1) / meshKSize;
+        //        _eroder.Dispatch(_terrainMeshKernel, numMeshGroups, numMeshGroups, 1);
+        //        _eroder.Dispatch(_waterMeshKernel, numMeshGroups, numMeshGroups, 1);
+
+        _commandBuffer = new CommandBuffer();
+        _commandBuffer.DispatchCompute(_eroder, _terrainMeshKernel, numMeshGroups, numMeshGroups, 1);
+        _commandBuffer.DispatchCompute(_eroder, _waterMeshKernel, numMeshGroups, numMeshGroups, 1);
+        _commandBuffer.CreateGPUFence();
+        _commandBuffer.DrawProcedural(transform.localToWorldMatrix, _terrainMaterial, 0, MeshTopology.Triangles, _numVerts);
+        _commandBuffer.DrawProcedural(transform.localToWorldMatrix, _waterMaterial, 0, MeshTopology.Triangles, _numVerts);
+        _camera.AddCommandBuffer(CameraEvent.AfterForwardOpaque, _commandBuffer);
+    }
+
+    private void Update() {
+        const int kSize = 32;
+        int groups = _res / kSize;
+        _eroder.Dispatch(_simulateKernel, groups, groups, 1);
     }
 
     private void OnDestroy() {
@@ -106,17 +127,8 @@ public class Erosion : MonoBehaviour {
         _waterMeshBuffer.Release();
     }
 
-    private void OnRenderObject() {
-        // Todo: How to draw second mesh? Command buffer?
-
-        _terrainMaterial.SetPass(0);
-        Graphics.DrawProcedural(MeshTopology.Triangles, _numVerts);
-        _waterMaterial.SetPass(0);
-        Graphics.DrawProcedural(MeshTopology.Triangles, _numVerts);
-    }
-
     private void OnGUI() {
-        GUI.DrawTexture(new Rect(10, 10, 512, 512), _tex, ScaleMode.ScaleAndCrop);
+        GUI.DrawTexture(new Rect(1, 1, 256, 256), _tex, ScaleMode.ScaleAndCrop);
     }
 }
 
