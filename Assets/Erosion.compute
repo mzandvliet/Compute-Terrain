@@ -1,11 +1,11 @@
 ﻿#include "Noise.compute"
 
 #pragma kernel GenerateNoise
-#pragma kernel GenerateNormals
 #pragma kernel Simulate
 #pragma kernel ToTexture
 #pragma kernel MeshTerrain
 #pragma kernel MeshWater
+#pragma kernel GenerateNormals
 
 struct TerrainData {
     float Height;
@@ -49,6 +49,8 @@ void GenerateNoise(uint3 dtid : SV_DispatchThreadID)
 [numthreads(32, 32, 1)]
 void GenerateNormals(uint3 dtid : SV_DispatchThreadID)
 {
+    // Simple finite differences for now
+
     float l = _data[max(dtid.x - 1, 0)              + dtid.y * _heightRes                           ].Height;
     float r = _data[min(dtid.x + 1, _heightRes-1)   + (dtid.y - 0) * _heightRes                     ].Height;
     float t = _data[dtid.x                          + min(dtid.y + 1, _heightRes - 1) * _heightRes  ].Height;
@@ -63,6 +65,7 @@ void GenerateNormals(uint3 dtid : SV_DispatchThreadID)
 [numthreads(32, 32, 1)]
 void Simulate(uint3 dtid : SV_DispatchThreadID)
 {
+    // Todo: Need to double buffer, most likely
     uint idx = dtid.x + dtid.y * _heightRes;
     _data[idx].Water = max(0, _data[idx].Water - 0.001);
 }

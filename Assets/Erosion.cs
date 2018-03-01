@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -51,13 +50,8 @@ public class Erosion : MonoBehaviour {
     private CommandBuffer _commandBuffer;
 
     void Awake() {
-        _noiseKernel = _eroder.FindKernel("GenerateNoise");
-        _simulateKernel = _eroder.FindKernel("Simulate");
-        _normalKernel = _eroder.FindKernel("GenerateNormals");
-        _textureKernel = _eroder.FindKernel("ToTexture");
-        _terrainMeshKernel = _eroder.FindKernel("MeshTerrain");
-        _waterMeshKernel = _eroder.FindKernel("MeshWater");
-        
+        // Create buffers
+
         _terrainBuffer = new ComputeBuffer(_res * _res, Marshal.SizeOf(typeof(TerrainData)));
 
         _numVerts = (_res - 1) * (_res - 1) * 6;
@@ -68,11 +62,23 @@ public class Erosion : MonoBehaviour {
         _tex.enableRandomWrite = true;
         _tex.Create();
 
+        // Find kernels
+
+        _noiseKernel = _eroder.FindKernel("GenerateNoise");
+        _simulateKernel = _eroder.FindKernel("Simulate");
+        _textureKernel = _eroder.FindKernel("ToTexture");
+        _terrainMeshKernel = _eroder.FindKernel("MeshTerrain");
+        _waterMeshKernel = _eroder.FindKernel("MeshWater");
+        _normalKernel = _eroder.FindKernel("GenerateNormals");
+
+        // Set all kernel state
+
         _eroder.SetInt("_heightRes", _res);
         _eroder.SetFloat("_noiseFreq", _noiseFreq);
         _eroder.SetFloat("_maxHeight", _maxHeight);
 
         _eroder.SetBuffer(_noiseKernel, "_data", _terrainBuffer);
+
         _eroder.SetBuffer(_simulateKernel, "_data", _terrainBuffer);
 
         _eroder.SetBuffer(_terrainMeshKernel, "_data", _terrainBuffer);
@@ -89,6 +95,8 @@ public class Erosion : MonoBehaviour {
         _terrainMaterial.SetBuffer("verts", _terrainMeshBuffer);
         _waterMaterial.SetBuffer("verts", _waterMeshBuffer);
 
+        // Initial terrain generation
+
         const int noiseKSize = 32;
         int numNoiseGroups = _res / noiseKSize;
         _eroder.Dispatch(_noiseKernel, numNoiseGroups, numNoiseGroups, 1);
@@ -100,6 +108,8 @@ public class Erosion : MonoBehaviour {
         const int textureKSize = 32;
         int numTextureGroups = _res / textureKSize;
         _eroder.Dispatch(_textureKernel, numTextureGroups, numTextureGroups, 1);
+
+        // Command buffer for meshing and rendering
 
         const int meshKSize = 32;
         int numMeshGroups = (_res - 1) / meshKSize;
@@ -113,16 +123,18 @@ public class Erosion : MonoBehaviour {
         _camera.AddCommandBuffer(CameraEvent.AfterForwardOpaque, _commandBuffer);
     }
 
-    private void Update() {
-        const int kSize = 32;
-        int groups = _res / kSize;
-        _eroder.Dispatch(_simulateKernel, groups, groups, 1);
-    }
-
     private void OnDestroy() {
         _terrainBuffer.Release();
         _terrainMeshBuffer.Release();
         _waterMeshBuffer.Release();
+    }
+
+    private void Update() {
+        // Simulate
+
+        const int kSize = 32;
+        int groups = _res / kSize;
+        _eroder.Dispatch(_simulateKernel, groups, groups, 1);
     }
 
     private void OnGUI() {
