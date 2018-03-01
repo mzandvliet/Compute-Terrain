@@ -103,8 +103,6 @@ public class Erosion : MonoBehaviour {
 
         const int meshKSize = 32;
         int numMeshGroups = (_res - 1) / meshKSize;
-        //        _eroder.Dispatch(_terrainMeshKernel, numMeshGroups, numMeshGroups, 1);
-        //        _eroder.Dispatch(_waterMeshKernel, numMeshGroups, numMeshGroups, 1);
 
         _commandBuffer = new CommandBuffer();
         _commandBuffer.DispatchCompute(_eroder, _terrainMeshKernel, numMeshGroups, numMeshGroups, 1);
@@ -128,7 +126,7 @@ public class Erosion : MonoBehaviour {
     }
 
     private void OnGUI() {
-        GUI.DrawTexture(new Rect(1, 1, 256, 256), _tex, ScaleMode.ScaleAndCrop);
+        GUI.DrawTexture(new Rect(Screen.width - 264, Screen.height-264, 256, 256), _tex, ScaleMode.ScaleAndCrop);
     }
 }
 
