@@ -24,7 +24,9 @@ int _heightRes;
 float _noiseFreq;
 float _maxHeight;
 
-RWStructuredBuffer<TerrainData> _data;
+RWStructuredBuffer<TerrainData> _dataA;
+RWStructuredBuffer<TerrainData> _dataB;
+
 RWStructuredBuffer<Vertex> _waterMesh;
 RWStructuredBuffer<Vertex> _terrainMesh;
 RWTexture2D<float4> _texture;
@@ -41,25 +43,25 @@ void GenerateNoise(uint3 dtid : SV_DispatchThreadID)
 
     h = h * h;
     
-    _data[dtid.x + dtid.y * _heightRes].Height = h * _maxHeight;  
-
-    _data[dtid.x + dtid.y * _heightRes].Water = 0.1;  
+    _dataB[dtid.x + dtid.y * _heightRes].Height = h * _maxHeight;
+    _dataB[dtid.x + dtid.y * _heightRes].Water = 0.1;
 }
 
 [numthreads(32, 32, 1)]
 void GenerateNormals(uint3 dtid : SV_DispatchThreadID)
 {
     // Simple finite differences for now
+    // Todo: use generated mesh, not simulation data
 
-    float l = _data[max(dtid.x - 1, 0)              + dtid.y * _heightRes                           ].Height;
-    float r = _data[min(dtid.x + 1, _heightRes-1)   + (dtid.y - 0) * _heightRes                     ].Height;
-    float t = _data[dtid.x                          + min(dtid.y + 1, _heightRes - 1) * _heightRes  ].Height;
-    float b = _data[dtid.x                          + max(dtid.y - 1, 0) * _heightRes               ].Height;
+    float l = _dataB[max(dtid.x - 1, 0)              + dtid.y * _heightRes                           ].Height;
+    float r = _dataB[min(dtid.x + 1, _heightRes-1)   + (dtid.y - 0) * _heightRes                     ].Height;
+    float t = _dataB[dtid.x                          + min(dtid.y + 1, _heightRes - 1) * _heightRes  ].Height;
+    float b = _dataB[dtid.x                          + max(dtid.y - 1, 0) * _heightRes               ].Height;
 
     float dx = (r - l);
     float dz = (t - b);
     
-    _data[dtid.x + dtid.y * _heightRes].Normal = normalize(float3(dx, 2.0, dz));
+    _dataB[dtid.x + dtid.y * _heightRes].Normal = normalize(float3(dx, 2.0, dz));
 }
 
 [numthreads(32, 32, 1)]
@@ -67,13 +69,14 @@ void Simulate(uint3 dtid : SV_DispatchThreadID)
 {
     // Todo: Need to double buffer, most likely
     uint idx = dtid.x + dtid.y * _heightRes;
-    _data[idx].Water = max(0, _data[idx].Water - 0.001);
+    _dataB[idx].Water = max(0, _dataA[idx].Water - 0.001);
+    _dataB[idx].Height = _dataA[idx].Height;
 }
 
 [numthreads(32, 32, 1)]
 void ToTexture(uint3 dtid : SV_DispatchThreadID)
 {
-    float h = _data[dtid.x + dtid.y * _heightRes].Height / _maxHeight;
+    float h = _dataB[dtid.x + dtid.y * _heightRes].Height / _maxHeight;
     _texture[dtid.xy] = float4(h,h,h,1);
 }
 
@@ -97,37 +100,37 @@ void MeshTerrain(uint3 dtid : SV_DispatchThreadID)
 
     const float scale = 0.125;
 
-    d = _data[(dtid.x + 0) + (dtid.y + 0) * _heightRes];
+    d = _dataB[(dtid.x + 0) + (dtid.y + 0) * _heightRes];
     v.Position = float3(dtid.x + 0.0, d.Height, dtid.y + 0.0) * scale;
     v.Normal = d.Normal;
     v.Uv = float2(0, 0);
     _terrainMesh[vertIdx + 0] = v;
 
-    d = _data[(dtid.x + 0) + (dtid.y + 1) * _heightRes];
+    d = _dataB[(dtid.x + 0) + (dtid.y + 1) * _heightRes];
     v.Position = float3(dtid.x + 0.0, d.Height, dtid.y + 1.0) * scale;
     v.Normal = d.Normal;
     v.Uv = float2(0, 1);
     _terrainMesh[vertIdx + 1] = v;
     
-    d = _data[(dtid.x + 1) + (dtid.y + 1) * _heightRes];
+    d = _dataB[(dtid.x + 1) + (dtid.y + 1) * _heightRes];
     v.Position = float3(dtid.x + 1.0, d.Height, dtid.y + 1.0) * scale;
     v.Normal = d.Normal;
     v.Uv = float2(1, 1);
     _terrainMesh[vertIdx + 2] = v;
 
-    d = _data[(dtid.x + 1) + (dtid.y + 1) * _heightRes];
+    d = _dataB[(dtid.x + 1) + (dtid.y + 1) * _heightRes];
     v.Position = float3(dtid.x + 1.0, d.Height, dtid.y + 1.0) * scale;
     v.Normal = d.Normal;
     v.Uv = float2(1, 1);
     _terrainMesh[vertIdx + 3] = v;
     
-    d = _data[(dtid.x + 1) + (dtid.y + 0) * _heightRes];
+    d = _dataB[(dtid.x + 1) + (dtid.y + 0) * _heightRes];
     v.Position = float3(dtid.x + 1.0, d.Height, dtid.y + 0.0) * scale;
     v.Normal = d.Normal;
     v.Uv = float2(1, 0);
     _terrainMesh[vertIdx + 4] = v;
     
-    d = _data[(dtid.x + 0) + (dtid.y + 0) * _heightRes];
+    d = _dataB[(dtid.x + 0) + (dtid.y + 0) * _heightRes];
     v.Position = float3(dtid.x + 0.0, d.Height, dtid.y + 0.0) * scale;
     v.Normal = d.Normal;
     v.Uv = float2(0, 0);
@@ -149,42 +152,42 @@ void MeshWater(uint3 dtid : SV_DispatchThreadID)
 
     const float scale = 0.125;
 
-    d = _data[(dtid.x + 0) + (dtid.y + 0) * _heightRes];
+    d = _dataB[(dtid.x + 0) + (dtid.y + 0) * _heightRes];
     h = d.Height + d.Water * _maxHeight;
     v.Position = float3(dtid.x + 0.0, h, dtid.y + 0.0) * scale;
     v.Normal = d.Normal;
     v.Uv = float2(0, 0);
     _waterMesh[vertIdx + 0] = v;
 
-    d = _data[(dtid.x + 0) + (dtid.y + 1) * _heightRes];
+    d = _dataB[(dtid.x + 0) + (dtid.y + 1) * _heightRes];
     h = d.Height + d.Water * _maxHeight;
     v.Position = float3(dtid.x + 0.0, h, dtid.y + 1.0) * scale;
     v.Normal = d.Normal;
     v.Uv = float2(0, 1);
     _waterMesh[vertIdx + 1] = v;
 
-    d = _data[(dtid.x + 1) + (dtid.y + 1) * _heightRes];
+    d = _dataB[(dtid.x + 1) + (dtid.y + 1) * _heightRes];
     h = d.Height + d.Water * _maxHeight;
     v.Position = float3(dtid.x + 1.0, h, dtid.y + 1.0) * scale;
     v.Normal = d.Normal;
     v.Uv = float2(1, 1);
     _waterMesh[vertIdx + 2] = v;
 
-    d = _data[(dtid.x + 1) + (dtid.y + 1) * _heightRes];
+    d = _dataB[(dtid.x + 1) + (dtid.y + 1) * _heightRes];
     h = d.Height + d.Water * _maxHeight;
     v.Position = float3(dtid.x + 1.0, h, dtid.y + 1.0) * scale;
     v.Normal = d.Normal;
     v.Uv = float2(1, 1);
     _waterMesh[vertIdx + 3] = v;
 
-    d = _data[(dtid.x + 1) + (dtid.y + 0) * _heightRes];
+    d = _dataB[(dtid.x + 1) + (dtid.y + 0) * _heightRes];
     h = d.Height + d.Water * _maxHeight;
     v.Position = float3(dtid.x + 1.0, h, dtid.y + 0.0) * scale;
     v.Normal = d.Normal;
     v.Uv = float2(1, 0);
     _waterMesh[vertIdx + 4] = v;
 
-    d = _data[(dtid.x + 0) + (dtid.y + 0) * _heightRes];
+    d = _dataB[(dtid.x + 0) + (dtid.y + 0) * _heightRes];
     h = d.Height + d.Water * _maxHeight;
     v.Position = float3(dtid.x + 0.0, h, dtid.y + 0.0) * scale;
     v.Normal = d.Normal;
