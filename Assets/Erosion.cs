@@ -95,9 +95,10 @@ public class Erosion : MonoBehaviour {
         _commandBuffer.DispatchCompute(_eroder, _terrainMeshKernel, numMeshGroups, numMeshGroups, 1);
         _commandBuffer.DispatchCompute(_eroder, _waterMeshKernel, numMeshGroups, numMeshGroups, 1);
         _commandBuffer.CreateGPUFence();
+        // Todo: issue normal generation call
         _commandBuffer.DrawProcedural(transform.localToWorldMatrix, _terrainMaterial, 0, MeshTopology.Triangles, _numVerts);
         _commandBuffer.DrawProcedural(transform.localToWorldMatrix, _waterMaterial, 0, MeshTopology.Triangles, _numVerts);
-        _camera.AddCommandBuffer(CameraEvent.BeforeForwardOpaque, _commandBuffer);
+        _camera.AddCommandBuffer(CameraEvent.AfterForwardOpaque, _commandBuffer);
     }
 
     private void OnDestroy() {
