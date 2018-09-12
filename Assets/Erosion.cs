@@ -2,6 +2,11 @@
 using UnityEngine;
 using UnityEngine.Rendering;
 
+/* Todo:
+ * - normal generation for terrain and water surfaces is equivalent right now, but
+ * the code can't be shared yet. Fix.
+ */
+
 public struct TerrainData {
     public float Height;
     public Vector3 Normal;

@@ -26,6 +26,7 @@ float _maxHeight;
 
 RWStructuredBuffer<TerrainData> _dataA;
 RWStructuredBuffer<TerrainData> _dataB;
+RWStructuredBuffer<TerrainData> _data;
 
 RWStructuredBuffer<Vertex> _waterMesh;
 RWStructuredBuffer<Vertex> _terrainMesh;
@@ -53,15 +54,16 @@ void GenerateNormals(uint3 dtid : SV_DispatchThreadID)
     // Simple finite differences for now
     // Todo: use generated mesh, not simulation data
 
-    float l = _dataB[max(dtid.x - 1, 0)              + dtid.y * _heightRes                           ].Height;
-    float r = _dataB[min(dtid.x + 1, _heightRes-1)   + (dtid.y - 0) * _heightRes                     ].Height;
-    float t = _dataB[dtid.x                          + min(dtid.y + 1, _heightRes - 1) * _heightRes  ].Height;
-    float b = _dataB[dtid.x                          + max(dtid.y - 1, 0) * _heightRes               ].Height;
+    float l = _data[max(dtid.x - 1, 0)              + dtid.y * _heightRes                           ].Height;
+    float r = _data[min(dtid.x + 1, _heightRes-1)   + (dtid.y - 0) * _heightRes                     ].Height;
+    float t = _data[dtid.x                          + min(dtid.y + 1, _heightRes - 1) * _heightRes  ].Height;
+    float b = _data[dtid.x                          + max(dtid.y - 1, 0) * _heightRes               ].Height;
 
     float dx = (r - l);
     float dz = (t - b);
     
-    _dataB[dtid.x + dtid.y * _heightRes].Normal = normalize(float3(dx, 2.0, dz));
+    _data[dtid.x + dtid.y * _heightRes].Normal = normalize(float3(dx, 2.0, dz));
+    // Todo: tangents?
 }
 
 [numthreads(32, 32, 1)]
@@ -70,6 +72,7 @@ void Simulate(uint3 dtid : SV_DispatchThreadID)
     // Todo: Need to double buffer, most likely
     uint idx = dtid.x + dtid.y * _heightRes;
     _dataB[idx].Water = max(0, _dataA[idx].Water - 0.001);
+
     _dataB[idx].Height = _dataA[idx].Height;
 }
 
